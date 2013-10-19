@@ -1,0 +1,14 @@
+# encoding: utf-8
+
+"""
+Settings file for dyndns.py
+"""
+
+server='localhost'
+keyfile='tsig.key'
+origin='example.com'
+
+clients = {
+    # Format: 'secret', 'client1.example.com',
+}
+

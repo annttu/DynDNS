@@ -17,3 +17,6 @@ Copy settings_local.py.example to settings_local.py and configure it.
 # Usage #
 
     curl http://example.com/dyndns/index.fcgi?secret=myclientsecret
+    # or
+    curl http://example.com/dyndns/index.fcgi?secret=myclientsecret&ip=1.2.3.4
+

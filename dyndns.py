@@ -14,10 +14,14 @@ __email__ = 'annttu@dyndns.annttu.fi'
 import dnsutils
 import settings
 import socket
+import traceback
+import utils
 
 import urlparse
 from cgi import escape
 from flup.server.fcgi import WSGIServer
+
+debugging=False
 
 ## Main view
 def doUpdate(environ, start_response):
@@ -29,31 +33,46 @@ def doUpdate(environ, start_response):
         if len(GET['secret']) == 1:
             if GET['secret'][0] in settings.clients:
                 client = settings.clients[GET['secret'][0]]
-                try:
-                    old = socket.gethostbyname(client)
-                    dnsutils.doUpdate(settings.server, settings.keyfile, settings.origin, False, 'delete', '360', 'A', client, old)
-                except dnsutils.DynDNSException as e:
-                    errors = "%s" % e
-                    status = '503 Service Unavailable'
-                except Exception as e:
-                    errors = "%s" % e
-                    status = '503 Service Unavailable'
-                try:
-                    dnsutils.doUpdate(settings.server, settings.keyfile, settings.origin, False, 'update', '360', 'A', client, addr)
-                    status = '200 OK'
-                except dnsutils.DynDNSException as e:
-                    errors = "%s" % e
-                    status = '503 Service Unavailable'
-                except Exception as e:
-                    errors = "%s" % e
-                    status = '503 Service Unavailable'
+                if 'ip' in GET and len(GET['ip']) == 1:
+                    addr = GET['ip'][0].strip()
+                if not utils.check_ipv4(addr):
+                    errors = "Only IPv4 currently supported!"
+                    status = "503 Service Unavailable"
+                if not errors:
+                    try:
+                        old = socket.gethostbyname(client)
+                        dnsutils.doUpdate(settings.server, settings.keyfile, settings.origin, False, 'delete', '360', 'A', client, old)
+                    except socket.gaierror:
+                        # address not set
+                        pass
+                    except dnsutils.DynDNSException as e:
+                        errors = "%s: %s" % (str(e), traceback.format_exc())
+                        status = '503 Service Unavailable'
+                    except Exception as e:
+                        errors = "%s: %s" % (str(e) or type(e), traceback.format_exc())
+                        status = '503 Service Unavailable'
+                if not errors:
+                    try:
+                        dnsutils.doUpdate(settings.server, settings.keyfile, settings.origin, False, 'update', '360', 'A', client, addr)
+                        status = '200 OK'
+                    except dnsutils.DynDNSException as e:
+                        errors = "%s: %s" % (str(e) or type(e), traceback.format_exc())
+                        status = '503 Service Unavailable'
+                    except Exception as e:
+                        errors = "%s: %s" % (str(e) or type(e), traceback.format_exc())
+                        status = '503 Service Unavailable'
     start_response(status, [('Content-Type', 'text/plain')])
-    #for k, v in environ.items():
-    #    if type(v) == str or type(v) == unicode:
-    #        yield("%s: %s\n" % (escape(k), escape(v)))
     yield(status)
     yield("\n")
-    yield(errors)
+    if debugging:
+        yield("%s" % errors)
+        yield("\n")
+
+def run(debug=False):
+    global debugging
+    debugging = debug
+    WSGIServer(doUpdate, debug=debug).run()
 
 if __name__ == '__main__':
-    WSGIServer(doUpdate).run()
+    #WSGIServer(doUpdate).run()
+    run(debug=True)

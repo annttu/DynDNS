@@ -14,6 +14,8 @@ clients = {
     'AiNg4QuikoosuV5aith0ahnuc': 'client1.example.com.',  # client1.example.com can be updated using secret AiNg4QuikoosuV5aith0ahnuc
 }
 
+logfile = 'dyndns.log'
+
 try:
     from settings_local import *
 except ImportError:

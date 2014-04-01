@@ -16,12 +16,21 @@ import settings
 import socket
 import traceback
 import utils
+import logging
 
 import urlparse
 from cgi import escape
 from flup.server.fcgi import WSGIServer
 
 debugging=False
+
+logger = logging.getLogger('dyndns')
+if settings.logfile:
+    hdlr = logging.FileHandler(settings.logfile)
+    formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+    hdlr.setFormatter(formatter)
+    logger.addHandler(hdlr)
+logger.setLevel(logging.INFO)
 
 ## Main view
 def doUpdate(environ, start_response):
@@ -42,23 +51,29 @@ def doUpdate(environ, start_response):
                     try:
                         old = socket.gethostbyname(client)
                         dnsutils.doUpdate(settings.server, settings.keyfile, settings.origin, False, 'delete', '360', 'A', client, old)
+                        logger.info("Deleted old entry %s IN A 360 %s" % (client, old))
                     except socket.gaierror:
                         # address not set
                         pass
                     except dnsutils.DynDNSException as e:
+                        logger.exception(e)
                         errors = "%s: %s" % (str(e), traceback.format_exc())
                         status = '503 Service Unavailable'
                     except Exception as e:
+                        logger.exception(e)
                         errors = "%s: %s" % (str(e) or type(e), traceback.format_exc())
                         status = '503 Service Unavailable'
                 if not errors:
                     try:
                         dnsutils.doUpdate(settings.server, settings.keyfile, settings.origin, False, 'update', '360', 'A', client, addr)
                         status = '200 OK'
+                        logger.info("Added new entry %s IN A 360 %s" % (client, addr))
                     except dnsutils.DynDNSException as e:
+                        logger.exception(e)
                         errors = "%s: %s" % (str(e) or type(e), traceback.format_exc())
                         status = '503 Service Unavailable'
                     except Exception as e:
+                        logger.exception(e)
                         errors = "%s: %s" % (str(e) or type(e), traceback.format_exc())
                         status = '503 Service Unavailable'
     start_response(status, [('Content-Type', 'text/plain')])
@@ -71,6 +86,8 @@ def doUpdate(environ, start_response):
 def run(debug=False):
     global debugging
     debugging = debug
+    if debug:
+        logger.setLevel(logging.DEBUG)
     WSGIServer(doUpdate, debug=debug).run()
 
 if __name__ == '__main__':
